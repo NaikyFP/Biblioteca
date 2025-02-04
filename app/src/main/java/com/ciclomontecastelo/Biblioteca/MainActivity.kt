@@ -6,29 +6,27 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ciclomontecastelo.Biblioteca.ui.theme.BibliotecaTheme
 
 class MainActivity : ComponentActivity() {
+    private lateinit var databaseManager: DatabaseManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        databaseManager = DatabaseManager(this)
         setContent {
             BibliotecaTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    InterfazUsuario(
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                InterfazUsuario(databaseManager)
             }
         }
         Log.d("CicloDeVida", "Activity creada (onCreate)")
@@ -77,7 +75,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InterfazUsuario(modifier: Modifier = Modifier) {
+fun InterfazUsuario(databaseManager: DatabaseManager) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -86,38 +84,33 @@ fun InterfazUsuario(modifier: Modifier = Modifier) {
         },
         content = { padding ->
             Column(
-                modifier = modifier
+                modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                Text(
-                    text = "Bienvenido a la Biblioteca Comunitaria",
-                    modifier = Modifier.padding(16.dp)
-                )
+                val libros = remember { mutableStateListOf<Libro>() }
 
-                Image(
-                    painter = painterResource(id = R.drawable.library),
-                    contentDescription = "Imagen de la Biblioteca",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .padding(16.dp)
-                )
-
-                val libros = listOf(
-                    "Don Quijote de la Mancha",
-                    "Cien años de soledad",
-                    "La sombra del viento",
-                    "El amor en los tiempos del cólera",
-                    "Crónica de una muerte anunciada"
-                )
+                LaunchedEffect(Unit) {
+                    val cursor = databaseManager.obtenerTodosLosLibros()
+                    while (cursor.moveToNext()) {
+                        val libro = Libro(
+                            cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_ID)),
+                            cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_TITULO)),
+                            cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_AUTOR)),
+                            cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_GENERO)),
+                            cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_DISPONIBLE)) == 1
+                        )
+                        libros.add(libro)
+                    }
+                    cursor.close()
+                }
 
                 LazyColumn(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     items(libros) { libro ->
                         Text(
-                            text = libro,
+                            text = "${libro.titulo} - ${libro.autor} - ${libro.genero} - Disponible: ${libro.disponible}",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
@@ -133,6 +126,7 @@ fun InterfazUsuario(modifier: Modifier = Modifier) {
 @Composable
 fun InterfazUsuarioPreview() {
     BibliotecaTheme {
-        InterfazUsuario()
+        InterfazUsuario(DatabaseManager(LocalContext.current))
     }
 }
+
